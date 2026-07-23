@@ -1,17 +1,34 @@
 # Enterprise AWS VPC Infrastructure
 
-**Infrastructure-as-Code (IaC) deployment of a secure, highly available AWS Virtual Private Cloud using Terraform.**
+## Why I Built This
+This is the foundational network layer I originally built for my fintech vault project, pulled 
+out into its own repo to prove Infrastructure-as-Code and zero-trust networking as a standalone 
+skill, not just a buried detail in a bigger build.
 
-This repository contains the foundational network architecture originally developed for a secure serverless financial document vault. It demonstrates the ability to programmatically deploy and manage cloud networking with a strict focus on zero-trust routing and data isolation.
+## What I Built
+- **Zero-Trust Topology:** Isolated private subnets for sensitive backend services (Lambda, 
+  databases), with zero direct route to the internet.
+- **Cost-Optimized Private Routing:** An S3 Gateway VPC Endpoint routes internal traffic to AWS 
+  services on the private backbone, bypassing NAT Gateway data-processing costs entirely.
+- **Automated Provisioning:** 100% of the network (VPC, subnets, route tables, endpoints) is 
+  defined in Terraform (HCL) for repeatable, drift-resistant deployment.
+- **Least-Privilege Ready:** Structured to integrate directly with strict IAM role boundaries 
+  and customer-managed KMS encryption.
 
-## Architecture & Security Features
+## Why I Made These Calls
+I chose the Gateway Endpoint over a NAT Gateway because the traffic pattern here only ever needs 
+to reach S3. NAT Gateways bill per hour plus per-GB processed, which is real cost for traffic 
+that never needed general internet access. This only works because the pattern is narrow. A 
+workload needing broader outbound internet access would still need a NAT Gateway.
 
-* **Zero-Trust Network Topology:** Provisioned isolated private subnets for sensitive backend services (Lambda, databases) to ensure zero public internet exposure.
-* **Cost-Optimized Private Routing:** Engineered an S3 Gateway VPC Endpoint to route traffic directly to AWS services on the internal backbone, bypassing NAT Gateway data processing costs.
-* **Automated Provisioning:** 100% of the network infrastructure (VPCs, Subnets, Route Tables, Endpoints) is defined in Terraform (HCL) for repeatable, drift-resistant deployment.
-* **Least-Privilege Design:** Structured to seamlessly integrate with strict IAM role boundaries and customer-managed KMS encryption standards.
+I also enforced isolation at the routing level, not just via security groups. The private 
+subnet simply has no route to an Internet Gateway, so even a misconfigured security group can't 
+expose it.
 
 ## Tech Stack
-* **Cloud Provider:** Amazon Web Services (AWS)
-* **IaC Tool:** Terraform
-* **Core Services:** VPC, Subnets, Route Tables, Gateway Endpoints
+AWS (VPC, Subnets, Route Tables, Gateway Endpoints), Terraform
+
+## What I'd Do Next
+This is single-AZ right now. At real scale I'd replicate across multiple Availability Zones for 
+availability, split Terraform state per environment instead of one shared state file, and enable 
+VPC Flow Logs to CloudWatch so network traffic is actually auditable rather than assumed correct.
