@@ -1,34 +1,43 @@
-# Enterprise AWS VPC Infrastructure
+# Secure AWS VPC Foundation (Terraform)
 
 ## Why I Built This
-This is the foundational network layer I originally built for my fintech vault project, pulled 
-out into its own repo to prove Infrastructure-as-Code and zero-trust networking as a standalone 
-skill, not just a buried detail in a bigger build.
+This repository serves as the master network architecture for my broader cloud security 
+portfolio (including a serverless fintech vault and compliance monitor). I needed to prove I 
+could define a strict, zero-trust network boundary using Infrastructure as Code. Rather than 
+relying on default VPCs, this project demonstrates how to construct an isolated, observable 
+environment designed to keep sensitive data entirely off the public internet.
 
 ## What I Built
-- **Zero-Trust Topology:** Isolated private subnets for sensitive backend services (Lambda, 
-  databases), with zero direct route to the internet.
-- **Cost-Optimized Private Routing:** An S3 Gateway VPC Endpoint routes internal traffic to AWS 
-  services on the private backbone, bypassing NAT Gateway data-processing costs entirely.
-- **Automated Provisioning:** 100% of the network (VPC, subnets, route tables, endpoints) is 
-  defined in Terraform (HCL) for repeatable, drift-resistant deployment.
-- **Least-Privilege Ready:** Structured to integrate directly with strict IAM role boundaries 
-  and customer-managed KMS encryption.
+- **Network Isolation:** Provisioned a custom VPC utilizing strict private subnets, with no 
+  direct route to an Internet Gateway.
+- **Secure Routing:** Configured S3 Gateway VPC Endpoints so internal resources (like Lambda) 
+  reach AWS S3 over the internal AWS backbone, bypassing the public internet entirely.
+- **Baseline Observability:** Enabled VPC Flow Logs, routed to a CloudWatch log group with a 
+  strict 7-day retention policy, to capture network traffic at the foundation level. Deeper 
+  anomaly detection and SNS-based alerting on this traffic is built out as its own dedicated 
+  project (see `centralized-network-observability-dashboard`), rather than duplicated here.
+- **IAM:** Configured a dedicated IAM role with a trust policy scoped specifically to allow the 
+  VPC Flow Logs service to write to the CloudWatch log group, nothing broader.
+- **Deployment:** Authored in Terraform and deployed manually via the AWS CLI with local state 
+  management (`terraform.tfstate`).
 
 ## Why I Made These Calls
-I chose the Gateway Endpoint over a NAT Gateway because the traffic pattern here only ever needs 
-to reach S3. NAT Gateways bill per hour plus per-GB processed, which is real cost for traffic 
-that never needed general internet access. This only works because the pattern is narrow. A 
-workload needing broader outbound internet access would still need a NAT Gateway.
-
-I also enforced isolation at the routing level, not just via security groups. The private 
-subnet simply has no route to an Internet Gateway, so even a misconfigured security group can't 
-expose it.
-
-## Tech Stack
-AWS (VPC, Subnets, Route Tables, Gateway Endpoints), Terraform
+- **VPC Endpoints over NAT Gateways:** NAT Gateways charge hourly and per-GB, and don't add 
+  privacy benefit here since the traffic only ever needs to reach S3. A Gateway Endpoint gives 
+  the same "off the public internet" posture at zero data-processing cost.
+- **Cost & Lifecycle Management:** The 7-day log retention window prevents runaway storage cost. 
+  The whole environment was Free Tier-scoped and destroyed immediately after testing to maintain 
+  a $0.00 footprint.
+- **Local State:** For this foundational sprint, I kept Terraform state local to focus entirely 
+  on getting the network routing, IAM scoping, and Flow Logs pipeline correct before adding the 
+  operational complexity of remote state.
 
 ## What I'd Do Next
-This is single-AZ right now. At real scale I'd replicate across multiple Availability Zones for 
-availability, split Terraform state per environment instead of one shared state file, and enable 
-VPC Flow Logs to CloudWatch so network traffic is actually auditable rather than assumed correct.
+The network architecture is secure, but the deployment methodology needs to mature for a 
+multi-developer environment. Next:
+1. **Remote State Management:** Migrate `terraform.tfstate` to an S3 backend with DynamoDB state 
+   locking, to prevent concurrent-modification corruption.
+2. **Infrastructure CI/CD:** Wire this repo to a GitHub Actions pipeline instead of local 
+   `terraform apply` runs.
+3. **Security Scanning:** Add `tfsec` or Checkov to that pipeline to validate security group and 
+   network configs automatically before every deployment.
